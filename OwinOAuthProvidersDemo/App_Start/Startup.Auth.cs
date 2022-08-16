@@ -6,22 +6,99 @@ using Owin.Security.Providers.Evernote;
 using Owin.Security.Providers.PayPal;
 using Owin.Security.Providers.ArcGISPortal;
 using Owin.Security.Providers.Typeform;
+using Owin.Security.Providers.OpenID;
+using Microsoft.Owin.Security.OpenIdConnect;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.Owin.Host.SystemWeb;
+using System.Threading.Tasks;
+using Microsoft.Owin.Security.Notifications;
 
 namespace OwinOAuthProvidersDemo
 {
-	public partial class Startup
-	{
-		// For more information on configuring authentication, please visit http://go.microsoft.com/fwlink/?LinkId=301864
-		public void ConfigureAuth(IAppBuilder app)
-		{
-			// Enable the application to use a cookie to store information for the signed in user
-			app.UseCookieAuthentication(new CookieAuthenticationOptions
-			{
-				AuthenticationType = DefaultAuthenticationTypes.ApplicationCookie,
-				LoginPath = new PathString("/Account/Login")
-			});
-			// Use a cookie to temporarily store information about a user logging in with a third party login provider
-			app.UseExternalSignInCookie(DefaultAuthenticationTypes.ExternalCookie);
+    public partial class Startup
+    {
+        // For more information on configuring authentication, please visit http://go.microsoft.com/fwlink/?LinkId=301864
+        public void ConfigureAuth(IAppBuilder app)
+        {
+
+            //app.UseWelcomePage();
+#if(DEBUG)
+            // New code: Add the error page middleware to the pipeline. 
+            app.UseErrorPage();
+#endif
+            // Enable the application to use a cookie to store information for the signed in user
+            app.UseCookieAuthentication(new CookieAuthenticationOptions
+            {
+                AuthenticationType = DefaultAuthenticationTypes.ApplicationCookie,
+                LoginPath = new PathString("/Account/Login")
+            });
+            // Use a cookie to temporarily store information about a user logging in with a third party login provider
+            app.UseExternalSignInCookie(DefaultAuthenticationTypes.ExternalCookie);
+
+
+            // From using Microsoft.Owin.Security.OpenIdConnect;
+            app.UseOpenIdConnectAuthentication(
+                new OpenIdConnectAuthenticationOptions
+                {
+                    AuthenticationMode = Microsoft.Owin.Security.AuthenticationMode.Active
+                    ,
+                    AuthenticationType = "SSO Ontario Secure"
+                    ,
+                    Caption = "SSO Ontario Secure"
+                    ,
+                    ResponseType = OpenIdConnectResponseType.Code
+                    ,
+                    ResponseMode = OpenIdConnectResponseMode.FormPost
+                    ,
+                    Authority = "https://sit.login.security.gov.on.ca/rest/authorize?domain=DEVRBRDPDomain"
+                    ,
+                    ClientId = "BRDPCLIENT"
+                    ,
+                    Scope = $"{OpenIdConnectScope.OpenIdProfile} {OpenIdConnectScope.Email}"
+                    ,
+                    RedirectUri = "https://ontariorbrdpdev.ergobpm.com/account/logon"
+                    //,
+                    //ClientId = "RBRDPCLIENT"
+                    ,
+                    TokenValidationParameters = new TokenValidationParameters()
+                    {
+                        NameClaimType = "name"
+                        ,
+                        ValidateIssuer = false
+                    }
+                    ,
+                    // More information on why the CookieManager needs to be set can be found here: 
+                    // https://docs.microsoft.com/en-us/aspnet/samesite/owin-samesite
+                    CookieManager = new SameSiteCookieManager(new SystemWebCookieManager()),
+                    // OpenIdConnectAuthenticationNotifications configures OWIN to send notification of failed authentications to OnAuthenticationFailed method
+                    Notifications = new OpenIdConnectAuthenticationNotifications
+                    {
+                        RedirectToIdentityProvider = OnRedirectToIdentityProvider,
+                        AuthenticationFailed = OnAuthenticationFailed
+                    }
+                }
+            );
+
+            //From using Owin.Security.Providers.OpenID;
+            //app.UseOpenIDAuthentication("https://sit.login.security.gov.on.ca/oauth2/rest/authorize?response_type=code&domain=DEVRBRDPDomain&client_id=RBRDPCLIENT&scope=openid profile email&redirect_uri=https%3a%2f%2fontariorbrdpdev.ergobpm.com%2faccount%2flogon", "SSO Ontario", true);
+
+            app.UseOpenIDAuthentication(new Owin.Security.Providers.OpenIDBase.OpenIDAuthenticationOptions
+            {
+                AuthenticationMode = Microsoft.Owin.Security.AuthenticationMode.Active
+                ,
+                Caption = "SSO Ontario"
+                ,
+                AuthenticationType = "SSO Ontario"
+                ,
+                ProviderDiscoveryUri = "https://sit.login.security.gov.on.ca/rest/authorize?response_type=code&domain=DEVRBRDPDomain&client_id=RBRDPCLIENT&scope=openid profile email"
+                , 
+                //"https://ontariorbrdpdev.ergobpm.com/account/logon"
+                CallbackPath = new PathString("/account/logon")
+
+            });
+
+            #region Other Providers...
             //app.UseDeviantArtAuthentication("id", "secret");
             //app.UseUntappdAuthentication("id", "secret");
             // Uncomment the following lines to enable logging in with third party login providers
@@ -122,6 +199,7 @@ namespace OwinOAuthProvidersDemo
             //app.UseOpenIDAuthentication("http://orange.fr", "Orange");
             // Use OpenId provider login uri instead of discovery uri
             //app.UseOpenIDAuthentication("http://openid.orange.fr/server", "Orange", true);
+
 
             //app.UseSalesforceAuthentication(
             //    clientId: "",
@@ -368,7 +446,31 @@ namespace OwinOAuthProvidersDemo
             //    ClientSecret = "",
             //};
             //typeformOptions.Scope.Add("forms:read");
-            //app.UseTypeformAuthentication(typeformOptions);
+            //app.UseTypeformAuthentication(typeformOptions); 
+            #endregion
+        }
+
+        private Task OnRedirectToIdentityProvider(RedirectToIdentityProviderNotification<OpenIdConnectMessage, OpenIdConnectAuthenticationOptions> context)
+        {
+            //if (!String.IsNullOrWhiteSpace(domain))
+            //{
+            //    context.ProtocolMessage.Parameters.Add("domain", domain);
+            //    context.ProtocolMessage.DomainHint = String.IsNullOrWhiteSpace(domain) ? null : domain;
+            //}
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Handle failed authentication requests by redirecting the user to the home page with an error in the query string
+        /// </summary>
+        /// <param name="context"></param>
+        /// <returns></returns>
+        private Task OnAuthenticationFailed(AuthenticationFailedNotification<OpenIdConnectMessage, OpenIdConnectAuthenticationOptions> context)
+        {
+            context.HandleResponse();
+            context.Response.Redirect("/?errormessage=" + context.Exception.Message);
+            return Task.CompletedTask;
         }
     }
+
 }
