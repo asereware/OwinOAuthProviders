@@ -1,10 +1,12 @@
-﻿using System.Threading.Tasks;
+﻿using System.Linq;
+using System.Threading.Tasks;
 using System.Web;
 using System.Web.Mvc;
 using Microsoft.AspNet.Identity;
 using Microsoft.AspNet.Identity.EntityFramework;
 using Microsoft.Owin.Security;
 using OwinOAuthProvidersDemo.Models;
+using System.Security.Claims;
 
 namespace OwinOAuthProvidersDemo.Controllers
 {
@@ -196,6 +198,9 @@ namespace OwinOAuthProvidersDemo.Controllers
         [ValidateAntiForgeryToken]
         public ActionResult ExternalLogin(string provider, string returnUrl, string shopName = "")
         {
+            //The session state is set to mode="off" in config.
+            //ControllerContext.HttpContext.Session.RemoveAll();
+
             // Request a redirect to the external login provider
             return new ChallengeResult(provider, Url.Action("ExternalLoginCallback", "Account", new { ReturnUrl = returnUrl }), null, shopName);
         }
@@ -205,6 +210,9 @@ namespace OwinOAuthProvidersDemo.Controllers
         [AllowAnonymous]
         public async Task<ActionResult> ExternalLoginCallback(string returnUrl)
         {
+            //The session state is set to mode="off" in config.
+            //ControllerContext.HttpContext.Session.RemoveAll();
+
             var loginInfo = await AuthenticationManager.GetExternalLoginInfoAsync();
             if (loginInfo == null)
             {
@@ -223,7 +231,14 @@ namespace OwinOAuthProvidersDemo.Controllers
                 // If the user does not have an account, then prompt the user to create an account
                 ViewBag.ReturnUrl = returnUrl;
                 ViewBag.LoginProvider = loginInfo.Login.LoginProvider;
-                return View("ExternalLoginConfirmation", new ExternalLoginConfirmationViewModel { UserName = loginInfo.DefaultUserName });
+                return View("ExternalLoginConfirmation", new ExternalLoginConfirmationViewModel 
+                    { 
+                        UserName = 
+                            loginInfo.DefaultUserName 
+                            ?? 
+                            loginInfo.ExternalIdentity.FindFirstValue("preferred_username")
+                }
+                );
             }
         }
 
@@ -408,6 +423,9 @@ namespace OwinOAuthProvidersDemo.Controllers
 
             public override void ExecuteResult(ControllerContext context)
             {
+                // this line fixed the problem with returing null
+                context.RequestContext.HttpContext.Response.SuppressFormsAuthenticationRedirect = true;
+
                 var properties = new AuthenticationProperties() { RedirectUri = RedirectUri };
                 if (UserId != null)
                 {

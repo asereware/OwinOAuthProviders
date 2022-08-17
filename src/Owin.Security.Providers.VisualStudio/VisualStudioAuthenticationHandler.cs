@@ -19,9 +19,9 @@ namespace Owin.Security.Providers.VisualStudio {
 		private readonly HttpClient _httpClient;
 
 		public VisualStudioAuthenticationHandler(HttpClient httpClient, ILogger logger) {
-            _httpClient = httpClient;
-            _logger = logger;
-        }
+			_httpClient = httpClient;
+			_logger = logger;
+		}
 
 		protected override async Task<AuthenticationTicket> AuthenticateCoreAsync() {
 			AuthenticationProperties properties = null;
@@ -54,17 +54,17 @@ namespace Owin.Security.Providers.VisualStudio {
 				var redirectUri = requestPrefix + Request.PathBase + Options.CallbackPath;
 
 				// Build up the body for the token request
-			    var body = new List<KeyValuePair<string, string>>
-			    {
-			        new KeyValuePair<string, string>("client_assertion_type",
-			            "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"),
-			        new KeyValuePair<string, string>("client_assertion", Options.AppSecret),
-			        new KeyValuePair<string, string>("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer"),
-			        new KeyValuePair<string, string>("assertion", code),
-			        new KeyValuePair<string, string>("redirect_uri", redirectUri)
-			    };
+				var body = new List<KeyValuePair<string, string>>
+				{
+					new KeyValuePair<string, string>("client_assertion_type",
+						"urn:ietf:params:oauth:client-assertion-type:jwt-bearer"),
+					new KeyValuePair<string, string>("client_assertion", Options.AppSecret),
+					new KeyValuePair<string, string>("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer"),
+					new KeyValuePair<string, string>("assertion", code),
+					new KeyValuePair<string, string>("redirect_uri", redirectUri)
+				};
 
-			    // Request the token
+				// Request the token
 				var requestMessage = new HttpRequestMessage(HttpMethod.Post, Options.Endpoints.TokenEndpoint);
 				requestMessage.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 				requestMessage.Content = new FormUrlEncodedContent(body);
@@ -87,14 +87,14 @@ namespace Owin.Security.Providers.VisualStudio {
 				text = await userResponse.Content.ReadAsStringAsync();
 				var user = JObject.Parse(text);
 
-			    var context = new VisualStudioAuthenticatedContext(Context, user, accessToken, expiresIn, refreshToken)
-			    {
-			        Identity = new ClaimsIdentity(
-			            Options.AuthenticationType,
-			            ClaimsIdentity.DefaultNameClaimType,
-			            ClaimsIdentity.DefaultRoleClaimType)
-			    };
-			    if (!string.IsNullOrEmpty(context.Id)) {
+				var context = new VisualStudioAuthenticatedContext(Context, user, accessToken, expiresIn, refreshToken)
+				{
+					Identity = new ClaimsIdentity(
+						Options.AuthenticationType,
+						ClaimsIdentity.DefaultNameClaimType,
+						ClaimsIdentity.DefaultRoleClaimType)
+				};
+				if (!string.IsNullOrEmpty(context.Id)) {
 					context.Identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, context.Id, XmlSchemaString, Options.AuthenticationType));
 				}
 				if (!string.IsNullOrEmpty(context.Name)) {
@@ -124,46 +124,46 @@ namespace Owin.Security.Providers.VisualStudio {
 
 			var challenge = Helper.LookupChallenge(Options.AuthenticationType, Options.AuthenticationMode);
 
-		    if (challenge == null) return Task.FromResult<object>(null);
-		    var baseUri =
-		        "https" + //Schema must be HTTPS
-		        Uri.SchemeDelimiter +
-		        Request.Host +
-		        Request.PathBase;
+			if (challenge == null) return Task.FromResult<object>(null);
+			var baseUri =
+				"https" + //Schema must be HTTPS
+				Uri.SchemeDelimiter +
+				Request.Host +
+				Request.PathBase;
 
-		    var currentUri =
-		        baseUri +
-		        Request.Path +
-		        Request.QueryString;
+			var currentUri =
+				baseUri +
+				Request.Path +
+				Request.QueryString;
 
-		    var redirectUri =
-		        baseUri +
-		        Options.CallbackPath;
+			var redirectUri =
+				baseUri +
+				Options.CallbackPath;
 
-		    var properties = challenge.Properties;
-		    if (string.IsNullOrEmpty(properties.RedirectUri)) {
-		        properties.RedirectUri = currentUri;
-		    }
+			var properties = challenge.Properties;
+			if (string.IsNullOrEmpty(properties.RedirectUri)) {
+				properties.RedirectUri = currentUri;
+			}
 
-		    // OAuth2 10.12 CSRF
-		    GenerateCorrelationId(properties);
+			// OAuth2 10.12 CSRF
+			GenerateCorrelationId(properties);
 
-		    // space separated
-		    var scope = string.Join(" ", Options.Scope);
+			// space separated
+			var scope = string.Join(" ", Options.Scope);
 
-		    var state = Options.StateDataFormat.Protect(properties);
+			var state = Options.StateDataFormat.Protect(properties);
 
-		    var authorizationEndpoint =
-		        Options.Endpoints.AuthorizationEndpoint +
-		        "?client_id=" + Uri.EscapeDataString(Options.AppId) +
-		        "&response_type=Assertion" +
-		        "&state=" + Uri.EscapeDataString(state) +
-		        "&scope=" + Uri.EscapeDataString(scope) +
-		        "&redirect_uri=" + Uri.EscapeDataString(redirectUri);
+			var authorizationEndpoint =
+				Options.Endpoints.AuthorizationEndpoint +
+				"?client_id=" + Uri.EscapeDataString(Options.AppId) +
+				"&response_type=Assertion" +
+				"&state=" + Uri.EscapeDataString(state) +
+				"&scope=" + Uri.EscapeDataString(scope) +
+				"&redirect_uri=" + Uri.EscapeDataString(redirectUri);
 
-		    Response.Redirect(authorizationEndpoint);
+			Response.Redirect(authorizationEndpoint);
 
-		    return Task.FromResult<object>(null);
+			return Task.FromResult<object>(null);
 		}
 
 		public override async Task<bool> InvokeAsync() {
@@ -171,43 +171,43 @@ namespace Owin.Security.Providers.VisualStudio {
 		}
 
 		private async Task<bool> InvokeReplyPathAsync() {
-		    if (!Options.CallbackPath.HasValue || Options.CallbackPath != Request.Path) return false;
-		    // TODO: error responses
+			if (!Options.CallbackPath.HasValue || Options.CallbackPath != Request.Path) return false;
+			// TODO: error responses
 
-		    var ticket = await AuthenticateAsync();
-		    if (ticket == null) {
-		        _logger.WriteWarning("Invalid return state, unable to redirect.");
-		        Response.StatusCode = 500;
-		        return true;
-		    }
+			var ticket = await AuthenticateAsync();
+			if (ticket == null) {
+				_logger.WriteWarning("Invalid return state, unable to redirect.");
+				Response.StatusCode = 500;
+				return true;
+			}
 
-		    var context = new VisualStudioReturnEndpointContext(Context, ticket)
-		    {
-		        SignInAsAuthenticationType = Options.SignInAsAuthenticationType,
-		        RedirectUri = ticket.Properties.RedirectUri
-		    };
+			var context = new VisualStudioReturnEndpointContext(Context, ticket)
+			{
+				SignInAsAuthenticationType = Options.SignInAsAuthenticationType,
+				RedirectUri = ticket.Properties.RedirectUri
+			};
 
-		    await Options.Provider.ReturnEndpoint(context);
+			await Options.Provider.ReturnEndpoint(context);
 
-		    if (context.SignInAsAuthenticationType != null &&
-		        context.Identity != null) {
-		            var grantIdentity = context.Identity;
-		            if (!string.Equals(grantIdentity.AuthenticationType, context.SignInAsAuthenticationType, StringComparison.Ordinal)) {
-		                grantIdentity = new ClaimsIdentity(grantIdentity.Claims, context.SignInAsAuthenticationType, grantIdentity.NameClaimType, grantIdentity.RoleClaimType);
-		            }
-		            Context.Authentication.SignIn(context.Properties, grantIdentity);
-		        }
+			if (context.SignInAsAuthenticationType != null &&
+				context.Identity != null) {
+					var grantIdentity = context.Identity;
+					if (!string.Equals(grantIdentity.AuthenticationType, context.SignInAsAuthenticationType, StringComparison.Ordinal)) {
+						grantIdentity = new ClaimsIdentity(grantIdentity.Claims, context.SignInAsAuthenticationType, grantIdentity.NameClaimType, grantIdentity.RoleClaimType);
+					}
+					Context.Authentication.SignIn(context.Properties, grantIdentity);
+				}
 
-		    if (context.IsRequestCompleted || context.RedirectUri == null) return context.IsRequestCompleted;
-		    var redirectUri = context.RedirectUri;
-		    if (context.Identity == null) {
-		        // add a redirect hint that sign-in failed in some way
-		        redirectUri = WebUtilities.AddQueryString(redirectUri, "error", "access_denied");
-		    }
-		    Response.Redirect(redirectUri);
-		    context.RequestCompleted();
+			if (context.IsRequestCompleted || context.RedirectUri == null) return context.IsRequestCompleted;
+			var redirectUri = context.RedirectUri;
+			if (context.Identity == null) {
+				// add a redirect hint that sign-in failed in some way
+				redirectUri = WebUtilities.AddQueryString(redirectUri, "error", "access_denied");
+			}
+			Response.Redirect(redirectUri);
+			context.RequestCompleted();
 
-		    return context.IsRequestCompleted;
+			return context.IsRequestCompleted;
 		}
 	}
 }

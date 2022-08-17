@@ -13,6 +13,8 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.Owin.Host.SystemWeb;
 using System.Threading.Tasks;
 using Microsoft.Owin.Security.Notifications;
+using Owin.Security.Providers.OpenIDBase;
+using Microsoft.IdentityModel.Logging;
 
 namespace OwinOAuthProvidersDemo
 {
@@ -21,7 +23,7 @@ namespace OwinOAuthProvidersDemo
         // For more information on configuring authentication, please visit http://go.microsoft.com/fwlink/?LinkId=301864
         public void ConfigureAuth(IAppBuilder app)
         {
-
+            IdentityModelEventSource.ShowPII = true;
             //app.UseWelcomePage();
 #if(DEBUG)
             // New code: Add the error page middleware to the pipeline. 
@@ -41,36 +43,34 @@ namespace OwinOAuthProvidersDemo
             app.UseOpenIdConnectAuthentication(
                 new OpenIdConnectAuthenticationOptions
                 {
-                    AuthenticationMode = Microsoft.Owin.Security.AuthenticationMode.Active
-                    ,
-                    AuthenticationType = "SSO Ontario Secure"
-                    ,
-                    Caption = "SSO Ontario Secure"
-                    ,
-                    ResponseType = OpenIdConnectResponseType.Code
-                    ,
-                    ResponseMode = OpenIdConnectResponseMode.FormPost
-                    ,
-                    Authority = "https://sit.login.security.gov.on.ca/rest/authorize?domain=DEVRBRDPDomain"
-                    ,
-                    ClientId = "BRDPCLIENT"
-                    ,
-                    Scope = $"{OpenIdConnectScope.OpenIdProfile} {OpenIdConnectScope.Email}"
-                    ,
-                    RedirectUri = "https://ontariorbrdpdev.ergobpm.com/account/logon"
+                    //AuthenticationMode = Microsoft.Owin.Security.AuthenticationMode.Passive
                     //,
-                    //ClientId = "RBRDPCLIENT"
+                    AuthenticationType = "TegAzureAD"
                     ,
-                    TokenValidationParameters = new TokenValidationParameters()
-                    {
-                        NameClaimType = "name"
-                        ,
-                        ValidateIssuer = false
-                    }
+                    Caption = "The Ergo Group Azure AD"
                     ,
-                    // More information on why the CookieManager needs to be set can be found here: 
-                    // https://docs.microsoft.com/en-us/aspnet/samesite/owin-samesite
-                    CookieManager = new SameSiteCookieManager(new SystemWebCookieManager()),
+                    ResponseType = OpenIdConnectResponseType.CodeIdToken
+                    ,
+                    Authority = "https://login.microsoftonline.com/89c2b538-b2c7-46bc-b708-071557741a0f/v2.0"
+                    ,
+                    ClientId = "8293b413-2540-4d49-89d5-1e5c142a2b0e"
+                    ,
+                    Scope = OpenIdConnectScope.OpenIdProfile
+                    ,
+                    RedirectUri = "https://localhost:44378/Account/ExternalLoginCallback"                    
+                    ,
+                    PostLogoutRedirectUri = "https://localhost:44378"
+                    ,
+                    //TokenValidationParameters = new TokenValidationParameters()
+                    //{
+                    //    NameClaimType = "name"
+                    //    ,
+                    //    ValidateIssuer = false
+                    //}
+                    //,
+                    //// More information on why the CookieManager needs to be set can be found here: 
+                    //// https://docs.microsoft.com/en-us/aspnet/samesite/owin-samesite
+                    //CookieManager = new SameSiteCookieManager(new SystemWebCookieManager()),
                     // OpenIdConnectAuthenticationNotifications configures OWIN to send notification of failed authentications to OnAuthenticationFailed method
                     Notifications = new OpenIdConnectAuthenticationNotifications
                     {
@@ -81,20 +81,38 @@ namespace OwinOAuthProvidersDemo
             );
 
             //From using Owin.Security.Providers.OpenID;
-            //app.UseOpenIDAuthentication("https://sit.login.security.gov.on.ca/oauth2/rest/authorize?response_type=code&domain=DEVRBRDPDomain&client_id=RBRDPCLIENT&scope=openid profile email&redirect_uri=https%3a%2f%2fontariorbrdpdev.ergobpm.com%2faccount%2flogon", "SSO Ontario", true);
+            //app.UseOpenIDAuthenticationDomain("https://sit.login.security.gov.on.ca/oauth2/rest/authorize?response_type=code&domain=DEVRBRDPDomain&client_id=RBRDPCLIENT&scope=openid profile email" //&redirect_uri=https%3a%2f%2fontariorbrdpdev.ergobpm.com%2faccount%2flogon"
+            //    , "OntarioSsoRBRDP", true
+            //    , "https://ontariorbrdpdev.ergobpm.com/account/logon"
+            //    , "DEVRBRDPDomain");
 
-            app.UseOpenIDAuthentication(new Owin.Security.Providers.OpenIDBase.OpenIDAuthenticationOptions
+            app.UseOpenIDAuthentication(new OpenIDAuthenticationOptions
             {
-                AuthenticationMode = Microsoft.Owin.Security.AuthenticationMode.Active
+                //    AuthenticationMode = Microsoft.Owin.Security.AuthenticationMode.Passive
+                //    ,
+                Caption = "Ontario SSO for RBRDP"
                 ,
-                Caption = "SSO Ontario"
+                AuthenticationType = "OntarioSsoRBRDP"
                 ,
-                AuthenticationType = "SSO Ontario"
+                ProviderLoginUri = "https://sit.login.security.gov.on.ca/oauth2/rest/authorize"
+                //?response_type=code&domain=DEVRBRDPDomain&client_id=RBRDPCLIENT&scope=openid profile email"
                 ,
-                ProviderDiscoveryUri = "https://sit.login.security.gov.on.ca/rest/authorize?response_type=code&domain=DEVRBRDPDomain&client_id=RBRDPCLIENT&scope=openid profile email"
-                , 
-                //"https://ontariorbrdpdev.ergobpm.com/account/logon"
-                CallbackPath = new PathString("/account/logon")
+                ProviderDiscoveryUri = "https://sit.login.security.gov.on.ca/.well-known/openid-configuration"
+                ,
+                ClientId = "RBRDPCLIENT"
+                ,
+                Domain = "DEVRBRDPDomain"
+                ,
+                ResponseType = "code"
+                ,
+                Scope= "openid profile email"
+                ,
+                //CallbackPath = new PathString("/account/logon")
+                //,
+                RedirectUri = "https://ontariorbrdpdev.ergobpm.com/account/logon"
+                //// More information on why the CookieManager needs to be set can be found here: 
+                //// https://docs.microsoft.com/en-us/aspnet/samesite/owin-samesite
+                //CookieManager = new SameSiteCookieManager(new SystemWebCookieManager()),
 
             });
 
@@ -452,11 +470,10 @@ namespace OwinOAuthProvidersDemo
 
         private Task OnRedirectToIdentityProvider(RedirectToIdentityProviderNotification<OpenIdConnectMessage, OpenIdConnectAuthenticationOptions> context)
         {
-            //if (!String.IsNullOrWhiteSpace(domain))
-            //{
-            //    context.ProtocolMessage.Parameters.Add("domain", domain);
-            //    context.ProtocolMessage.DomainHint = String.IsNullOrWhiteSpace(domain) ? null : domain;
-            //}
+            if (context.Options.AuthenticationType == "OntarioSsoRBRDP")
+            {
+                context.ProtocolMessage.Parameters.Add("domain", "DEVRBRDPDomain");
+            }
             return Task.CompletedTask;
         }
 

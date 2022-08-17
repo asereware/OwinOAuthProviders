@@ -50,7 +50,7 @@ namespace Owin.Security.Providers.OpenIDBase
             AuthenticationProperties properties = null;
 
             try
-            {
+            {   
                 var query = Request.Query;
 
                 properties = UnpackStateParameter(query);
@@ -182,7 +182,7 @@ namespace Owin.Security.Providers.OpenIDBase
                     }
 
                     SetIdentityInformations(identity, claimedId.Value, attributeExchangeProperties);
-                    
+
                     var context = new OpenIDAuthenticatedContext(
                         Context,
                         identity,
@@ -281,9 +281,23 @@ namespace Owin.Security.Providers.OpenIDBase
 
         private string BuildReturnTo(string state)
         {
-            return Request.Scheme + "://" + Request.Host +
+            if (Options.RedirectUri != null)
+            {
+                var stateQuery = "state=" + Uri.EscapeDataString(state);
+                var ub = new UriBuilder(Options.RedirectUri);
+                if (ub.Query != null && ub.Query.Length > 1)
+                    ub.Query = ub.Query.Substring(1) + "&" + stateQuery;
+                else
+                    ub.Query = stateQuery;
+
+                return ub.ToString();
+            }
+            else
+            {
+                return Request.Scheme + "://" + Request.Host +
                    RequestPathBase + Options.CallbackPath +
                    "?state=" + Uri.EscapeDataString(state);
+            }
         }
 
         private async Task<Message> ParseRequestMessageAsync(IReadableStringCollection query)
@@ -301,7 +315,6 @@ namespace Owin.Security.Providers.OpenIDBase
             }
 
             var challenge = Helper.LookupChallenge(Options.AuthenticationType, Options.AuthenticationMode);
-
             if (challenge != null)
             {
                 if (string.IsNullOrEmpty(Options.ProviderLoginUri))
@@ -312,41 +325,46 @@ namespace Owin.Security.Providers.OpenIDBase
                 if (!string.IsNullOrEmpty(Options.ProviderLoginUri))
                 {
                     var requestPrefix = Request.Scheme + Uri.SchemeDelimiter + Request.Host;
-
                     var state = challenge.Properties;
                     if (string.IsNullOrEmpty(state.RedirectUri))
                     {
                         state.RedirectUri = requestPrefix + Request.PathBase + Request.Path + Request.QueryString;
                     }
 
+                    if (Options.RedirectUri != null)
+                    {
+                        state.RedirectUri = Options.RedirectUri;
+                    }
+
                     // Anti-CSRF
                     GenerateCorrelationId(state);
-
                     var returnTo = BuildReturnTo(Options.StateDataFormat.Protect(state));
-
-                    var authorizationEndpoint =
-                        Options.ProviderLoginUri +
+                    var authorizationEndpoint = AppendStandarOpenIDQueryParameters();
+                    if (Options.AppendStandardOpenIDQueryParameters)
+                    {
+                        authorizationEndpoint +=
                         "?openid.ns=" + Uri.EscapeDataString("http://specs.openid.net/auth/2.0") +
-                        "&openid.mode=" + Uri.EscapeDataString("checkid_setup") +
-                        "&openid.claimed_id=" + Uri.EscapeDataString("http://specs.openid.net/auth/2.0/identifier_select") +
-                        "&openid.identity=" + Uri.EscapeDataString("http://specs.openid.net/auth/2.0/identifier_select") +
-                        "&openid.return_to=" + Uri.EscapeDataString(returnTo) +
-                        "&openid.realm=" + Uri.EscapeDataString(requestPrefix) +
+                            "&openid.mode=" + Uri.EscapeDataString("checkid_setup") +
+                            "&openid.claimed_id=" + Uri.EscapeDataString("http://specs.openid.net/auth/2.0/identifier_select") +
+                            "&openid.identity=" + Uri.EscapeDataString("http://specs.openid.net/auth/2.0/identifier_select") +
+                            "&openid.return_to=" + Uri.EscapeDataString(returnTo) +
+                            "&openid.realm=" + Uri.EscapeDataString(requestPrefix) +
 
-                        "&openid.ns.ax=" + Uri.EscapeDataString("http://openid.net/srv/ax/1.0") +
-                        "&openid.ax.mode=" + Uri.EscapeDataString("fetch_request") +
+                            "&openid.ns.ax=" + Uri.EscapeDataString("http://openid.net/srv/ax/1.0") +
+                            "&openid.ax.mode=" + Uri.EscapeDataString("fetch_request") +
 
-                        "&openid.ax.type.email=" + Uri.EscapeDataString("http://axschema.org/contact/email") +
-                        "&openid.ax.type.name=" + Uri.EscapeDataString("http://axschema.org/namePerson") +
-                        "&openid.ax.type.first=" + Uri.EscapeDataString("http://axschema.org/namePerson/first") +
-                        "&openid.ax.type.last=" + Uri.EscapeDataString("http://axschema.org/namePerson/last") +
+                            "&openid.ax.type.email=" + Uri.EscapeDataString("http://axschema.org/contact/email") +
+                            "&openid.ax.type.name=" + Uri.EscapeDataString("http://axschema.org/namePerson") +
+                            "&openid.ax.type.first=" + Uri.EscapeDataString("http://axschema.org/namePerson/first") +
+                            "&openid.ax.type.last=" + Uri.EscapeDataString("http://axschema.org/namePerson/last") +
 
-                        "&openid.ax.type.email2=" + Uri.EscapeDataString("http://schema.openid.net/contact/email") +
-                        "&openid.ax.type.name2=" + Uri.EscapeDataString("http://schema.openid.net/namePerson") +
-                        "&openid.ax.type.first2=" + Uri.EscapeDataString("http://schema.openid.net/namePerson/first") +
-                        "&openid.ax.type.last2=" + Uri.EscapeDataString("http://schema.openid.net/namePerson/last") +
+                            "&openid.ax.type.email2=" + Uri.EscapeDataString("http://schema.openid.net/contact/email") +
+                            "&openid.ax.type.name2=" + Uri.EscapeDataString("http://schema.openid.net/namePerson") +
+                            "&openid.ax.type.first2=" + Uri.EscapeDataString("http://schema.openid.net/namePerson/first") +
+                            "&openid.ax.type.last2=" + Uri.EscapeDataString("http://schema.openid.net/namePerson/last") +
 
-                        "&openid.ax.required=" + Uri.EscapeDataString("email,name,first,last,email2,name2,first2,last2");
+                            "&openid.ax.required=" + Uri.EscapeDataString("email,name,first,last,email2,name2,first2,last2");
+                    }
 
                     // allow protocol extensions to add their own attributes to the endpoint URL
                     var endpoint = new OpenIDAuthorizationEndpointInfo()
@@ -364,6 +382,39 @@ namespace Owin.Security.Providers.OpenIDBase
             }
         }
 
+        private string AppendStandarOpenIDQueryParameters(string returnTo = null)
+        {
+            var url = Options.ProviderLoginUri;
+            if (!String.IsNullOrWhiteSpace(Options.Domain))
+                url = AddQueryParameter(url, "domain", Options.Domain);
+
+            if (!String.IsNullOrWhiteSpace(Options.ClientId))
+                url = AddQueryParameter(url, "client_id", Options.ClientId);
+
+            if (!String.IsNullOrWhiteSpace(Options.Scope))
+                url = AddQueryParameter(url, "scope", Options.Scope);
+            else
+                url = AddQueryParameter(url, "scope", "openid profile email");
+
+            if (!String.IsNullOrWhiteSpace(Options.ResponseType))
+                url = AddQueryParameter(url, "response_type", Options.ResponseType);
+            else
+                url = AddQueryParameter(url, "response_type", "code");
+
+            if (!String.IsNullOrWhiteSpace(Options.ResponseMode))
+                url = AddQueryParameter(url, "response_mode", Options.ResponseMode);
+
+            if (!String.IsNullOrWhiteSpace(returnTo ?? Options.RedirectUri))
+                url = AddQueryParameter(url, "redirect_uri", returnTo ?? Options.RedirectUri);
+
+            return url;
+        }
+
+        private string AddQueryParameter(string url, string paramaterName, string parameterValue)
+        {
+            return WebUtilities.AddQueryString(url, paramaterName, parameterValue);
+        }
+
         private async Task DoYadisDiscoveryAsync()
         {
             // 1° request
@@ -371,7 +422,7 @@ namespace Owin.Security.Providers.OpenIDBase
             if (httpResponse.StatusCode != HttpStatusCode.OK)
             {
                 Logger.WriteError(
-                    $"HTTP error {(int) httpResponse.StatusCode} ({httpResponse.StatusCode}) while performing discovery on {Options.ProviderDiscoveryUri}.");
+                    $"HTTP error {(int)httpResponse.StatusCode} ({httpResponse.StatusCode}) while performing discovery on {Options.ProviderDiscoveryUri}.");
                 return;
             }
 
@@ -409,7 +460,7 @@ namespace Owin.Security.Providers.OpenIDBase
                     if (httpResponse.StatusCode != HttpStatusCode.OK)
                     {
                         Logger.WriteError(
-                            $"HTTP error {(int) httpResponse.StatusCode} {httpResponse.StatusCode} while performing discovery on {url.AbsoluteUri}.");
+                            $"HTTP error {(int)httpResponse.StatusCode} {httpResponse.StatusCode} while performing discovery on {url.AbsoluteUri}.");
                         return;
                     }
                     if (!await IsXrdsDocumentAsync(httpResponse))
